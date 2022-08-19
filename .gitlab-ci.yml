@@ -1,0 +1,21 @@
+stages:
+  - build
+
+build:
+  stage: build
+  image: srclosson/grafana-plugin-ci-alpine:latest
+  before_script:
+    - yarn install --frozen-lockfile
+  script:
+    - ./node_modules/.bin/grafana-toolkit plugin:ci-build
+    - mage -v buildAll
+    - mage -v lint
+    - mage -v coverage
+    - ./node_modules/.bin/grafana-toolkit plugin:ci-build --finish
+    - ./node_modules/.bin/grafana-toolkit plugin:ci-package
+  artifacts:
+    paths:
+      - ci/jobs/package
+      - ci/packages
+      - ci/dist
+      - ci/grafana-test-env
