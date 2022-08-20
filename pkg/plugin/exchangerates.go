@@ -3,7 +3,6 @@ package plugin
 import (
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"sort"
 	"strings"
 	"time"
@@ -17,14 +16,14 @@ type TimeSeriesJson struct {
 	Rates map[string]map[string]float64 `json:"rates"`
 }
 
-func FetchRange(base string, from, to time.Time, symbols ...string) (*data.Frame, error) {
+func (d *ExchangeRatesDataSource) fetchRange(base string, from, to time.Time, symbols ...string) (*data.Frame, error) {
 	url := fmt.Sprintf("https://api.exchangerate.host/timeseries?start_date=%s&end_date=%s&base=%s&symbols=%s",
 		from.Format("2006-01-02"),
 		to.Format("2006-01-02"),
 		base,
 		strings.Join(symbols, ","),
 	)
-	resp, err := http.Get(url)
+	resp, err := d.httpClient.Get(url)
 	if err != nil {
 		return nil, err
 	}

@@ -3,6 +3,7 @@ package plugin
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/instancemgmt"
@@ -25,12 +26,16 @@ var (
 
 // NewExchangeRatesDatasource creates a new datasource instance.
 func NewExchangeRatesDatasource(_ backend.DataSourceInstanceSettings) (instancemgmt.Instance, error) {
-	return &ExchangeRatesDataSource{}, nil
+	return &ExchangeRatesDataSource{
+		httpClient: http.DefaultClient,
+	}, nil
 }
 
 // ExchangeRatesDataSource is an example datasource which can respond to data queries, reports
 // its health and has streaming skills.
-type ExchangeRatesDataSource struct{}
+type ExchangeRatesDataSource struct {
+	httpClient *http.Client
+}
 
 // Dispose here tells plugin SDK that plugin wants to clean up resources when a new instance
 // created. As soon as datasource settings change detected by SDK old datasource instance will
@@ -78,7 +83,7 @@ func (d *ExchangeRatesDataSource) query(_ context.Context, pCtx backend.PluginCo
 		return response
 	}
 
-	frame, err := FetchRange(qm.BaseCurrency, query.TimeRange.From, query.TimeRange.To, qm.ToCurrency)
+	frame, err := d.fetchRange(qm.BaseCurrency, query.TimeRange.From, query.TimeRange.To, qm.ToCurrency)
 	if err != nil {
 		response.Error = err
 		return response
