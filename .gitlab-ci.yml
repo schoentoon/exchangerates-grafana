@@ -3,7 +3,7 @@ stages:
 
 build:
   stage: build
-  image: srclosson/grafana-plugin-ci-alpine:latest
+  image: registry.gitlab.com/schoentoon/grafana-plugin-ci:latest
   before_script:
     - yarn install --frozen-lockfile
   script:
