@@ -7,15 +7,10 @@ build:
   before_script:
     - yarn install --frozen-lockfile
   script:
-    - ./node_modules/.bin/grafana-toolkit plugin:ci-build
+    - yarn build --coverage
     - mage -v buildAll
     - mage -v lint
     - mage -v coverage
-    - ./node_modules/.bin/grafana-toolkit plugin:ci-build --finish
-    - ./node_modules/.bin/grafana-toolkit plugin:ci-package
   artifacts:
     paths:
-      - ci/jobs/package
-      - ci/packages
-      - ci/dist
-      - ci/grafana-test-env
+      - dist
