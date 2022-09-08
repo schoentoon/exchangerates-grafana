@@ -54,13 +54,28 @@ func (d *ExchangeRatesDataSource) QueryData(ctx context.Context, req *backend.Qu
 	// create response struct
 	response := backend.NewQueryDataResponse()
 
-	// loop over queries and execute them individually.
-	for _, q := range req.Queries {
-		res := d.query(ctx, req.PluginContext, q)
+	type task struct {
+		d backend.DataResponse
+		q backend.DataQuery
+	}
 
-		// save the response in a hashmap
-		// based on with RefID as identifier
-		response.Responses[q.RefID] = res
+	ch := make(chan task, len(req.Queries))
+	for _, q := range req.Queries {
+		go func(q backend.DataQuery) {
+			ch <- task{d: d.query(ctx, req.PluginContext, q), q: q}
+		}(q)
+	}
+
+	for range req.Queries {
+		select {
+		case task := <-ch:
+			// save the response in a hashmap
+			// based on with RefID as identifier
+			response.Responses[task.q.RefID] = task.d
+		case <-ctx.Done():
+			// if the context finishes before all the requests we just bail out
+			return response, nil
+		}
 	}
 
 	return response, nil
