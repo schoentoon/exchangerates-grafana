@@ -10,22 +10,14 @@
     "description": "Exchangerates datasource",
     "author": {
       "name": "Toon Schoenmakers",
-      "url": ""
+      "url": "https://gitlab.com/schoentoon/exchangerates-grafana"
     },
-    "keywords": [],
+    "keywords": ["exchangerates"],
     "logos": {
       "small": "img/logo.svg",
       "large": "img/logo.svg"
     },
     "links": [
-      {
-        "name": "Website",
-        "url": "https://github.com/grafana/grafana-starter-datasource-backend"
-      },
-      {
-        "name": "License",
-        "url": "https://github.com/grafana/grafana-starter-datasource-backend/blob/master/LICENSE"
-      }
     ],
     "screenshots": [],
     "version": "%VERSION%",

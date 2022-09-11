@@ -11,6 +11,9 @@ build:
     - mage -v buildAll
     - mage -v lint
     - mage -v coverage
+  after_script:
+    - mv dist schoentoon-exchangerates-datasource
+    - zip schoentoon-exchangerates-datasource-0.1.zip schoentoon-exchangerates-datasource -r
   artifacts:
     paths:
-      - dist
+      - ./*.zip
