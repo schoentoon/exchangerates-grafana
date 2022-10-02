@@ -1,5 +1,6 @@
 stages:
   - build
+  - pages
 
 build:
   stage: build
@@ -17,3 +18,17 @@ build:
   artifacts:
     paths:
       - ./*.zip
+
+pages:
+  stage: pages
+  image: alpine:latest
+  only:
+    - master
+  dependencies:
+    - build
+  script:
+    - mkdir public
+    - mv *.zip public/
+  artifacts:
+    paths:
+      - public
