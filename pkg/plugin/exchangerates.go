@@ -4,11 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend/log"
-	"github.com/grafana/grafana-plugin-sdk-go/data"
 )
 
 type TimeSeriesJson struct {
@@ -16,12 +14,33 @@ type TimeSeriesJson struct {
 	Rates map[string]map[string]float64 `json:"rates"`
 }
 
-func (d *ExchangeRatesDataSource) fetchRange(base string, from, to time.Time, symbols ...string) (*data.Frame, error) {
+type Rates struct {
+	Rates map[time.Time]float64
+	Order []time.Time
+}
+
+func (r *Rates) Size() int64 {
+	// 24 is the size of a time.Time, 8 is the size of float64.. we just multiply it with the amount of items
+	// then we do the same trick for the Order array
+	return int64(((24 + 8) * len(r.Rates)) + (24 * len(r.Order)))
+}
+
+func (d *ExchangeRatesDataSource) fetchRange(base string, from, to time.Time, symbol string) (*Rates, error) {
+	var out *Rates
+	var err error
+	key := fmt.Sprintf("%s-%s", base, symbol)
+	val, found := d.cache.Get(key)
+	if found {
+		// TODO: add checks here on whether the timerange requested is actually in the cache, if not we request it and extend the cache
+		log.DefaultLogger.Info("We got our data from cache..")
+		return val.(*Rates), nil
+	}
+
 	url := fmt.Sprintf("https://api.exchangerate.host/timeseries?start_date=%s&end_date=%s&base=%s&symbols=%s",
 		from.Format("2006-01-02"),
 		to.Format("2006-01-02"),
 		base,
-		strings.Join(symbols, ","),
+		symbol,
 	)
 	resp, err := d.httpClient.Get(url)
 	if err != nil {
@@ -37,35 +56,24 @@ func (d *ExchangeRatesDataSource) fetchRange(base string, from, to time.Time, sy
 
 	log.DefaultLogger.Info("FetchRange", "timeseries", rates)
 
-	out := data.NewFrame("response")
+	out = &Rates{
+		Rates: make(map[time.Time]float64, len(rates.Rates)),
+		Order: make([]time.Time, 0, len(rates.Rates)),
+	}
 
-	times := make([]time.Time, 0, len(rates.Rates))
-
-	// we first filter out all the times and sort them
-	for rawWhen := range rates.Rates {
-		when, err := time.Parse("2006-01-02", rawWhen)
+	for whenRaw, rate := range rates.Rates {
+		when, err := time.Parse("2006-01-02", whenRaw)
 		if err != nil {
 			continue
 		}
 
-		if when.After(from) && when.Before(to) {
-			times = append(times, when)
-		}
+		out.Rates[when] = rate[symbol]
+		out.Order = append(out.Order, when)
 	}
 
-	sort.SliceStable(times, func(i, j int) bool { return times[i].Unix() < times[j].Unix() })
+	sort.SliceStable(out.Order, func(i, j int) bool { return out.Order[i].Unix() < out.Order[j].Unix() })
 
-	out.Fields = append(out.Fields, data.NewField("time", nil, times))
-
-	for _, symbol := range symbols {
-		exchangeRate := make([]float64, 0, len(times))
-
-		for _, when := range times {
-			exchangeRate = append(exchangeRate, rates.Rates[when.Format("2006-01-02")][symbol])
-		}
-
-		out.Fields = append(out.Fields, data.NewField(symbol, nil, exchangeRate))
-	}
+	d.cache.SetWithTTL(key, out, out.Size(), calcTTL())
 
 	return out, nil
 }
