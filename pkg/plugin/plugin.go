@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/dgraph-io/ristretto"
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
@@ -119,14 +120,19 @@ func (d *ExchangeRatesDataSource) query(_ context.Context, pCtx backend.PluginCo
 
 	frame := data.NewFrame("response")
 
-	frame.Fields = append(frame.Fields, data.NewField("time", nil, rates.Order))
-
+	times := make([]time.Time, 0, len(rates.Order))
 	exchangeRate := make([]float64, 0, len(rates.Order))
 
 	for _, when := range rates.Order {
-		exchangeRate = append(exchangeRate, rates.Rates[when])
+		if when.After(query.TimeRange.From) && when.Before(query.TimeRange.To) {
+			if rate, ok := rates.Rates[when]; ok { // this should always be true..
+				times = append(times, when)
+				exchangeRate = append(exchangeRate, rate)
+			}
+		}
 	}
 
+	frame.Fields = append(frame.Fields, data.NewField("time", nil, times))
 	frame.Fields = append(frame.Fields, data.NewField(qm.ToCurrency, nil, exchangeRate))
 
 	// add the frames to the response.
