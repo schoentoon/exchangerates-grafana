@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/dgraph-io/ristretto"
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/instancemgmt"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/log"
+	"github.com/grafana/grafana-plugin-sdk-go/data"
 )
 
 // Make sure SampleDatasource implements required interfaces. This is important to do
@@ -26,8 +28,18 @@ var (
 
 // NewExchangeRatesDatasource creates a new datasource instance.
 func NewExchangeRatesDatasource(_ backend.DataSourceInstanceSettings) (instancemgmt.Instance, error) {
+	cache, err := ristretto.NewCache(&ristretto.Config{
+		NumCounters: 1 * 1024 * 1024,  // 1MB
+		MaxCost:     32 * 1024 * 1024, // 32MB
+		BufferItems: 64,
+	})
+	if err != nil {
+		return nil, err
+	}
+
 	return &ExchangeRatesDataSource{
 		httpClient: http.DefaultClient,
+		cache:      cache,
 	}, nil
 }
 
@@ -35,6 +47,7 @@ func NewExchangeRatesDatasource(_ backend.DataSourceInstanceSettings) (instancem
 // its health and has streaming skills.
 type ExchangeRatesDataSource struct {
 	httpClient *http.Client
+	cache      *ristretto.Cache
 }
 
 // Dispose here tells plugin SDK that plugin wants to clean up resources when a new instance
@@ -98,11 +111,23 @@ func (d *ExchangeRatesDataSource) query(_ context.Context, pCtx backend.PluginCo
 		return response
 	}
 
-	frame, err := d.fetchRange(qm.BaseCurrency, query.TimeRange.From, query.TimeRange.To, qm.ToCurrency)
+	rates, err := d.fetchRange(qm.BaseCurrency, query.TimeRange.From, query.TimeRange.To, qm.ToCurrency)
 	if err != nil {
 		response.Error = err
 		return response
 	}
+
+	frame := data.NewFrame("response")
+
+	frame.Fields = append(frame.Fields, data.NewField("time", nil, rates.Order))
+
+	exchangeRate := make([]float64, 0, len(rates.Order))
+
+	for _, when := range rates.Order {
+		exchangeRate = append(exchangeRate, rates.Rates[when])
+	}
+
+	frame.Fields = append(frame.Fields, data.NewField(qm.ToCurrency, nil, exchangeRate))
 
 	// add the frames to the response.
 	response.Frames = append(response.Frames, frame)
