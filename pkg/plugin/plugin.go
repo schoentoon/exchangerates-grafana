@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"time"
 
 	"github.com/dgraph-io/ristretto"
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
@@ -98,15 +97,6 @@ func (d *ExchangeRatesDataSource) QueryData(ctx context.Context, req *backend.Qu
 type queryModel struct {
 	BaseCurrency string `json:"baseCurrency"`
 	ToCurrency   string `json:"toCurrency"`
-}
-
-func calcCost(in map[time.Time]float64) int64 {
-	// 24 is the size of a time.Time, 8 is the size of float64.. we just multiply it with the amount of items
-	return int64((24 + 8) * len(in))
-}
-
-func calcTTL() time.Duration {
-	return time.Hour
 }
 
 func (d *ExchangeRatesDataSource) query(_ context.Context, pCtx backend.PluginContext, query backend.DataQuery) backend.DataResponse {
