@@ -25,12 +25,14 @@ func (r *Rates) Size() int64 {
 	return int64(((24 + 8) * len(r.Rates)) + (24 * len(r.Order)))
 }
 
-func (r *Rates) ContainsToday() bool {
-	// we completely depend on Rates containing UTC timezones here..
-	now := time.Now().UTC()
-
-	_, ok := r.Rates[now]
+func (r *Rates) Contains(t time.Time) bool {
+	when := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC)
+	_, ok := r.Rates[when]
 	return ok
+}
+
+func (r *Rates) ContainsToday() bool {
+	return r.Contains(time.Now())
 }
 
 func calcTTL() time.Duration {
@@ -47,9 +49,12 @@ func (d *ExchangeRatesDataSource) fetchRange(base string, from, to time.Time, sy
 	key := fmt.Sprintf("%s-%s", base, symbol)
 	val, found := d.cache.Get(key)
 	if found {
-		// TODO: add checks here on whether the timerange requested is actually in the cache, if not we request it and extend the cache
 		log.DefaultLogger.Info("We got our data from cache..")
-		return val.(*Rates), nil
+		out = val.(*Rates)
+		if out.Contains(from) && out.Contains(to) {
+			return out, nil
+		}
+		log.DefaultLogger.Info("Cache doesn't contain the timerange we want, so falling through")
 	}
 
 	url := fmt.Sprintf("https://api.exchangerate.host/timeseries?start_date=%s&end_date=%s&base=%s&symbols=%s",
