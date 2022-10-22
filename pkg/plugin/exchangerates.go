@@ -88,8 +88,11 @@ func (d *ExchangeRatesDataSource) fetchRange(base string, from, to time.Time, sy
 			continue
 		}
 
-		out.Rates[when] = rate[symbol]
-		out.Order = append(out.Order, when)
+		v, ok := rate[symbol]
+		if ok {
+			out.Rates[when] = v
+			out.Order = append(out.Order, when)
+		}
 	}
 
 	sort.SliceStable(out.Order, func(i, j int) bool { return out.Order[i].Unix() < out.Order[j].Unix() })
