@@ -3,6 +3,7 @@ package plugin
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -24,6 +25,7 @@ import (
 // instance created upon datasource settings changed.
 var (
 	_ backend.QueryDataHandler      = (*ExchangeRatesDataSource)(nil)
+	_ backend.CheckHealthHandler    = (*ExchangeRatesDataSource)(nil)
 	_ instancemgmt.InstanceDisposer = (*ExchangeRatesDataSource)(nil)
 )
 
@@ -112,6 +114,9 @@ func (d *ExchangeRatesDataSource) query(_ context.Context, pCtx backend.PluginCo
 		return response
 	}
 
+	// if we return 1 day earlier as well, the graph looks slightly nicer
+	query.TimeRange.From = query.TimeRange.From.Add(-time.Hour * 24)
+
 	rates, err := d.fetchRange(qm.BaseCurrency, query.TimeRange.From, query.TimeRange.To, qm.ToCurrency)
 	if err != nil {
 		response.Error = err
@@ -139,4 +144,26 @@ func (d *ExchangeRatesDataSource) query(_ context.Context, pCtx backend.PluginCo
 	response.Frames = append(response.Frames, frame)
 
 	return response
+}
+
+// CheckHealth handles health checks sent from Grafana to the plugin.
+// The main use case for these health checks is the test button on the
+// datasource configuration page which allows users to verify that
+// a datasource is working as expected.
+func (d *ExchangeRatesDataSource) CheckHealth(_ context.Context, req *backend.CheckHealthRequest) (*backend.CheckHealthResult, error) {
+	resp, err := http.Get("https://api.exchangerate.host/latest")
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode == http.StatusOK {
+		return &backend.CheckHealthResult{
+			Status: backend.HealthStatusOk,
+		}, nil
+	}
+
+	return &backend.CheckHealthResult{
+		Status:  backend.HealthStatusError,
+		Message: fmt.Sprintf("https://api.exchangerate.host/latest responded with %s", resp.Status),
+	}, nil
 }
